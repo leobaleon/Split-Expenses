@@ -1,25 +1,28 @@
 import sys
 import csv
+import glob
 
-keywords = ["sweetgreen", "monty's", "target", "spectrum", "lao tao", "vons", "my thai", 
-"green leaves", "yoga-urt", "lassens", "just ride", "rei", "chegg", "gegen", "cuscatleca",
-"so cal gas", "check #"]
+# list to hold all of the transactions in the csv file
+transactions = []
 
 class Transaction():
-    def __init__(self, date, amount, description): # transactionID, date, amount, description, category):
-        # self.transactionID = transactionID
+    def __init__(self, date, amount, description): 
         self.date = date
         self.amount = float(amount)
         self.description = description
-        # self.category = category.lower()
+        self.include_transaction = False
 
     def __str__(self):
-        return "%s $%d %s" % (self.date, self.amount, self.description)
-        # return "%d %s $%d %s %s" % (self.transactionID, self.date, self.amount, self.category, self.description)
+        return "%s %s $%d" % (self.date, self.description, self.amount)
         
     def __repr__(self):
         return "%s $%d %s" % (self.date, self.amount, self.description)
-        # return "%d %s $%d %s %s" % (self.transactionID, self.date, self.amount, self.category, self.description)
+
+    def include(self, decision):
+        self.include_transaction = decision
+
+    def get_record(self):
+        return self.date, self.description, self.amount, self.include_transaction
 
 # simple helper function meant to aid in the reading and parsing of the csv file
 # this function accepts a substring as string and a list as a list of strings
@@ -36,6 +39,7 @@ def parseFile(fileName):
     # open file with read access
     file = open(fileName, "r")
 
+    # read the header and tokenize the terms
     header = file.readline()
     header = header.split(',')
 
@@ -43,7 +47,6 @@ def parseFile(fileName):
     indicies.append(findIndex("Date", header))
     indicies.append(findIndex("Amount", header))
     indicies.append(findIndex("Description", header))
-    # indicies.append(findIndex("Category", header)) # DONT NEED THIS
 
     # make tuples of each row
     with open(fileName, newline='') as f:
@@ -55,52 +58,64 @@ def parseFile(fileName):
         if (i != 0):
             transactions.append( Transaction(row[indicies[0]], row[indicies[1]], row[indicies[2]]) )
     
-    print(*transactions, sep='\n')
+    # print(*transactions, sep='\n')
 
 def filter():
+    print("For each of the following transactions, enter y or n to include each transaction or not.\n")
+    print("Date\t", "Description\t\t", "Amount")
+
+    # for each transaction
+    for x in transactions:
+        # print each transaction and ask user for a decision
+        print(x, end='\t')
+        decision = input()
+
+        # send bool with user decision to each transaction's mutator to decide whether or not 
+        # to include the current transaction in the resulting csv file
+        x.include(True if decision.upper() == 'Y' else False)
+
+def write():
     with open('dues.csv', 'w', newline='') as csvfile:
         writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
-
-        writer.writerow(["Date", "Description", "Amount"])
-
-        # for each transaction
+    
         for x in transactions:
+            # call each transaction's accessor to pull the following info:
+            # 0: date
+            # 1: description 
+            # 2: amount 
+            # 3: decision
+            row = x.get_record()
 
-            # if it contains one of the keywords that designates splitting
-            if any(keyword.lower() in x.description.lower() for keyword in keywords):
+            # if the user decided to include the current transaction,
+            # write it into the resultant csv file, and ensure amount is positive
+            if (row[3]):
+                writer.writerow([row[0], row[1], abs(row[2])])
 
-                # if the amount is large enough to split 4 ways
-                if abs(x.amount / 4) > 10:
-                    writer.writerow([x.date, x.description, 0, abs(x.amount / 4)])
-
-                # otherwise split 3 ways
-                else:
-                    writer.writerow([x.date, x.description, 0, abs(x.amount / 3)])
-      
-
-# list to hold all of the transactions in the csv file
-transactions = []
+def no_files_found():
+    print("============================================================================================================")
+    print("No csv files were found..!")
+    print("Place your csv files in the same folder that this program is currently in and try running the program again.")
+    print("============================================================================================================")
 
 def main():
     # list to hold file names
-    fileNames = []
+    fileNames = glob.glob("*.csv")
+    fileNames.remove('dues.csv')
 
-    # get file names from user as command-line arguments (skipping the first since it's the exec name)
-    for arg in sys.argv[1:]:
-        print(arg)
-        fileNames.append(arg)
+    if not fileNames:
+        no_files_found()
+    else:
+        # for each file, open and parse its transactions
+        for name in fileNames:
+            parseFile(name)
 
-    # TESTING:
-    # fileNames.append("ChaseCredit.csv")
-    # fileNames.append("WPCUCredit.csv")
-    # fileNames.append("WPCUDebit.csv")
+        # analyze each transaction and export to new csv file
+        filter()
 
-    # for each file, open and parse its transactions
-    for name in fileNames:
-        parseFile(name)
+        # use the transactions info to create a csv for easy copy pasting
+        write()
 
-    # analyze each transaction and export to new csv file
-    filter()
+        print("Dues.csv has been successfully created!")
 
 
 if __name__ == '__main__': main()
